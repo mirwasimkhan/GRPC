@@ -52,7 +52,7 @@ namespace GrpcService.Services
 		{
 			lock (validatedPrimes)
 			{
-				Console.WriteLine($"Top {validatedPrimes.Count} highest requested/validated prime numbers: {string.Join(", ", validatedPrimes)} \nCurrent Message Count: {totalMessageCout}");
+				Console.WriteLine($"Top {validatedPrimes.Count} highest validated prime numbers: {string.Join(", ", validatedPrimes)} \nCurrent Message Count: {totalMessageCout}");
 			}
 		}
 
