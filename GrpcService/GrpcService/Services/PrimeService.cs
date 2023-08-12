@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Grpc.Core;
+using Microsoft.AspNetCore.Components.Forms;
 
 namespace GrpcService.Services
 {
@@ -31,6 +32,7 @@ namespace GrpcService.Services
 
 		public override Task<PrimeResponse> CheckPrime(PrimeRequest request, ServerCallContext context)
 		{
+			var startTime = DateTime.UtcNow;
 			totalMessageCout++;
 			bool isPrime = IsPrime(request.Number);
 			if (isPrime)
@@ -43,7 +45,7 @@ namespace GrpcService.Services
 						validatedPrimes.RemoveAt(MaxValidatedPrimes);
 				}
 			}
-			return Task.FromResult(new PrimeResponse { IsPrime = isPrime });
+			return Task.FromResult(new PrimeResponse { IsPrime = isPrime, Number = request.Number});
 		}
 
 		public static void DisplayTopValidatedPrimes()
@@ -52,6 +54,22 @@ namespace GrpcService.Services
 			{
 				Console.WriteLine($"Top {validatedPrimes.Count} highest requested/validated prime numbers: {string.Join(", ", validatedPrimes)} \nCurrent Message Count: {totalMessageCout}");
 			}
+		}
+
+		public override async Task<MultiPrimeResponse> CheckPrimeStream(IAsyncStreamReader<PrimeRequest> requestStream, ServerCallContext context)
+		{
+			var response = new MultiPrimeResponse
+			{
+				MultiPrime = { }
+			};
+
+			await foreach(var request in requestStream.ReadAllAsync())
+			{
+				var isPrime = await CheckPrime(request, context);
+				response.MultiPrime.Add(isPrime);
+			}
+
+			return response;
 		}
 	}
 

@@ -1,4 +1,5 @@
-﻿using System.Threading.Tasks;
+﻿using System.Diagnostics;
+using System.Threading.Tasks;
 using Grpc.Net.Client;
 using GrpcClient;
 using GrpcService;
@@ -9,30 +10,57 @@ namespace GrpcClient
 	{
 		static async Task Main(string[] args)
 		{
-
-			// The port number must match the port of the gRPC server.
-			using var channel = GrpcChannel.ForAddress("http://localhost:7046");
-			var client = new PrimeService.PrimeServiceClient(channel);
-			//var reply = await client.CheckPrimeAsync(
-			//				  new PrimeRequest { Id=1,Number=10,TimeStamp=2 });
-			//Console.WriteLine("Is Number Prime: " + reply.IsPrime);
-			//Console.WriteLine("Press any key to exit...");
-			//Console.ReadKey();
-
-			const int NumberOfRequests = 10000;
-
-			
-			for (int i = 0; i < NumberOfRequests; i++)
+			var missingNumbers = new List<long>();
+			do
 			{
-				int randomNum = new Random().Next(1, 1001);
+				missingNumbers = await ExecuteServiceCalls();
+
+			} while (missingNumbers.Count() > 0);
+			
+			Console.WriteLine("\nAll requests sent.\n\n");
+		}
+
+		private static async Task<List<long>> ExecuteServiceCalls()
+		{
+			//Number of requests
+			const int NumberOfRequests = 10000;
+			
+			//Creating channel from port
+			using var channel = GrpcChannel.ForAddress("http://localhost:7046");
+			var client = new PrimeService.PrimeServiceClient(channel);						
+			
+			//hashmap for generating RTT
+			Dictionary<long, long> rttlst = new Dictionary<long, long>();
+			var sentNumbers = new List<long>();
+			
+			//initializing client stream to send data
+			using var streamCall = client.CheckPrimeStream();
+
+			//Sending requests in a stream to server and calculating RTT
+			foreach (var i in Enumerable.Range(1, NumberOfRequests))
+			{
+				int randomNum = new Random().Next(0, NumberOfRequests);
+				sentNumbers.Add(randomNum);
 				var request = new PrimeRequest { Number = randomNum };
 				var startTime = DateTime.UtcNow;
-				var response = await client.CheckPrimeAsync(request);
-				var rtt = (DateTime.UtcNow - startTime).TotalMilliseconds;
-				Console.WriteLine($"Request, RTT: {rtt} ms");
+				await streamCall.RequestStream.WriteAsync(request);
+				rttlst[randomNum] = (DateTime.UtcNow - startTime).Milliseconds;				
 			}
 
-			Console.WriteLine("All requests sent.");
+			//Letting the server know all data has been sent - complete stream and send response.
+			await streamCall.RequestStream.CompleteAsync();
+			var response = await streamCall;
+
+			foreach (var res in response.MultiPrime)
+			{
+				Console.WriteLine($"\nNumber: {res.Number}, Is prime: {res.IsPrime}, RTT: {rttlst[res.Number]}");
+			}
+			
+			//Searching to find in any numbers went missing
+			var missingNumbers = response.MultiPrime.Select(s => s.Number).Except(sentNumbers);
+			
+			return missingNumbers == null ? new List<long>() :  missingNumbers.ToList();
+
 		}
 	}
 }

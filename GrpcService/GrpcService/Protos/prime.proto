@@ -6,6 +6,7 @@ package greet;
 
 service PrimeService {
   rpc CheckPrime (PrimeRequest) returns (PrimeResponse);
+  rpc CheckPrimeStream (stream PrimeRequest) returns (MultiPrimeResponse);
 }
 
 message PrimeRequest {
@@ -16,4 +17,8 @@ message PrimeRequest {
 
 message PrimeResponse {
   bool IsPrime = 1;
+  int64 number = 2;
+}
+message MultiPrimeResponse {
+  repeated PrimeResponse multiPrime = 1;
 }
